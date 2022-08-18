@@ -72,7 +72,7 @@ def post_vk_wall(photo, message, params):
 
     attachment_meta = response_save_photo.json()["response"][0]
 
-    params['owner_id'] = -GROUP_ID
+    params['owner_id'] = -params['group_id']
     params['message'] = message
     params['attachments'] = '{type}{owner_id}_{media_id}'.format(
         type='photo',
