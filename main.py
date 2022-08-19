@@ -11,102 +11,142 @@ from dotenv import load_dotenv
 API_VERSION = 5.131
 
 
-def download_random_image_and_message():
-    api_template = 'https://xkcd.com/{}/info.0.json'
+def download_random_comic():
+    url_template = 'https://xkcd.com/{}/info.0.json'
 
-    response_latest_comic = requests.get(
-        api_template.format(''),
+    latest_comic_response = requests.get(
+        url_template.format(''),
     )
-    response_latest_comic.raise_for_status()
+    latest_comic_response.raise_for_status()
 
-    latest_comic = response_latest_comic.json()['num']
+    latest_comic = latest_comic_response.json()['num']
     random_comic = random.randint(1, latest_comic)
 
-    response_random_comic = requests.get(
-        api_template.format(random_comic),
+    random_comic_response = requests.get(
+        url_template.format(random_comic),
     )
-    response_random_comic.raise_for_status()
+    random_comic_response.raise_for_status()
 
-    decoded_response = response_random_comic.json()
+    decoded_response = random_comic_response.json()
 
     img_url = decoded_response['img']
     message = decoded_response['alt']
 
-    response_img = requests.get(img_url)
-    response_img.raise_for_status()
+    img_response = requests.get(img_url)
+    img_response.raise_for_status()
 
-    img = response_img.content
+    img = img_response.content
 
     return img, message
 
 
-def post_vk_wall(photo, message, params):
-    api_template = 'https://api.vk.com/method/{}'
+def get_upload_url(access_token, api_version, group_id):
+    api_endpoint = 'https://api.vk.com/method/photos.getWallUploadServer'
 
-    response_upload_server = requests.get(
-        api_template.format('photos.getWallUploadServer'),
-        params=params,
-    )
-    response_upload_server.raise_for_status()
-    upload_url = response_upload_server.json()['response']['upload_url']
+    response = requests.get(api_endpoint, params={
+        'access_token': access_token,
+        'v': api_version,
+        'group_id': group_id,
+    })
+    response.raise_for_status()
+    upload_url = response.json()['response']['upload_url']
 
+    return upload_url
+
+
+def upload_image_to_server(upload_url, image):
     files = {
-        'photo': photo,
+        'photo': image,
     }
 
-    response_upload_photo = requests.post(upload_url, files=files)
-    response_upload_photo.raise_for_status()
+    response = requests.post(upload_url, files=files)
+    response.raise_for_status()
 
-    decoded_response_upload_photo = response_upload_photo.json()
+    decoded_response = response.json()
 
-    params['photo'] = decoded_response_upload_photo['photo']
-    params['server'] = decoded_response_upload_photo['server']
-    params['hash'] = decoded_response_upload_photo['hash']
+    photo = decoded_response['photo']
+    server = decoded_response['server']
+    hash = decoded_response['hash']
 
-    response_save_photo = requests.post(
-        api_template.format('photos.saveWallPhoto'),
-        params=params,
-    )
-    response_save_photo.raise_for_status()
+    return photo, server, hash
 
-    attachment_meta = response_save_photo.json()["response"][0]
 
-    params['owner_id'] = -params['group_id']
-    params['message'] = message
-    params['attachments'] = '{type}{owner_id}_{media_id}'.format(
+def save_image_to_server(
+        access_token,
+        api_version,
+        group_id,
+        photo,
+        server,
+        hash,
+):
+
+    api_endpoint = 'https://api.vk.com/method/photos.saveWallPhoto'
+
+    response = requests.post(api_endpoint, params={
+        'access_token': access_token,
+        'v': api_version,
+        'group_id': group_id,
+        'photo': photo,
+        'server': server,
+        'hash': hash,
+    })
+    response.raise_for_status()
+
+    decoded_response = response.json()
+
+    owner_id = decoded_response['response'][0]['owner_id']
+    image_id = decoded_response['response'][0]['id']
+
+    image_as_attachment = '{type}{owner_id}_{media_id}'.format(
         type='photo',
-        owner_id=attachment_meta["owner_id"],
-        media_id=attachment_meta["id"],
+        owner_id=owner_id,
+        media_id=image_id,
     )
 
-    del params['photo']
-    del params['server']
-    del params['hash']
-    del params['group_id']
+    return image_as_attachment
 
-    response_post_wall = requests.post(
-        api_template.format('wall.post'),
-        params=params,
-    )
-    response_post_wall.raise_for_status()
+
+def post_wall(access_token, api_version, group_id, message, attachment):
+    api_endpoint = 'https://api.vk.com/method/wall.post'
+
+    response = requests.post(api_endpoint, params={
+        'access_token': access_token,
+        'v': api_version,
+        'owner_id': -group_id,
+        'message': message,
+        'attachments': attachment,
+    })
+    response.raise_for_status()
 
 
 def main():
     load_dotenv()
-    access_token = os.environ['ACCESS_TOKEN']
-    group_id = int(os.environ['GROUP_ID'])
+    access_token = os.environ['VK_ACCESS_TOKEN']
+    group_id = int(os.environ['VK_GROUP_ID'])
 
-    params = {
-        'access_token': access_token,
-        'v': API_VERSION,
-        'group_id': group_id,
-    }
+    vk_upload_url = get_upload_url(access_token, API_VERSION, group_id)
 
     with NamedTemporaryFile(suffix='.png') as tmp:
-        img, message = download_random_image_and_message()
+        img, message = download_random_comic()
         tmp.write(img)
         tmp.seek(0)
-        post_vk_wall(tmp, message, params)
+
+        photo, server, hash = upload_image_to_server(vk_upload_url, tmp)
+        image_attachment = save_image_to_server(
+            access_token,
+            API_VERSION,
+            group_id,
+            photo,
+            server,
+            hash,
+        )
+        post_wall(
+            access_token,
+            API_VERSION,
+            group_id,
+            message,
+            image_attachment,
+        )
 
 
 if __name__ == '__main__':
