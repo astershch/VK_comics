@@ -95,11 +95,12 @@ def post_vk_wall(photo, message, params):
 def main():
     load_dotenv()
     access_token = os.environ['ACCESS_TOKEN']
+    group_id = os.environ['GROUP_ID']
 
     params = {
         'access_token': access_token,
         'v': API_VERSION,
-        'group_id': GROUP_ID,
+        'group_id': group_id,
     }
 
     with NamedTemporaryFile(suffix='.png') as tmp:
