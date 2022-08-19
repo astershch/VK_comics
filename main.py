@@ -8,7 +8,6 @@ import requests
 from dotenv import load_dotenv
 
 
-GROUP_ID = 215398764
 API_VERSION = 5.131
 
 
@@ -95,7 +94,7 @@ def post_vk_wall(photo, message, params):
 def main():
     load_dotenv()
     access_token = os.environ['ACCESS_TOKEN']
-    group_id = os.environ['GROUP_ID']
+    group_id = int(os.environ['GROUP_ID'])
 
     params = {
         'access_token': access_token,
