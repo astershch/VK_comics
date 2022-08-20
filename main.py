@@ -66,9 +66,9 @@ def upload_image_to_server(upload_url, image):
 
     photo = decoded_response['photo']
     server = decoded_response['server']
-    hash = decoded_response['hash']
+    response_hash = decoded_response['hash']
 
-    return photo, server, hash
+    return photo, server, response_hash
 
 
 def save_image_to_server(
@@ -77,7 +77,7 @@ def save_image_to_server(
         group_id,
         photo,
         server,
-        hash,
+        response_hash,
 ):
 
     api_endpoint = 'https://api.vk.com/method/photos.saveWallPhoto'
@@ -88,7 +88,7 @@ def save_image_to_server(
         'group_id': group_id,
         'photo': photo,
         'server': server,
-        'hash': hash,
+        'hash': response_hash,
     })
     response.raise_for_status()
 
@@ -131,14 +131,14 @@ def main():
         tmp.write(img)
         tmp.seek(0)
 
-        photo, server, hash = upload_image_to_server(vk_upload_url, tmp)
+        photo, server, response_hash = upload_image_to_server(vk_upload_url, tmp)
         image_attachment = save_image_to_server(
             access_token,
             API_VERSION,
             group_id,
             photo,
             server,
-            hash,
+            response_hash,
         )
         post_wall(
             access_token,
